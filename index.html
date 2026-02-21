@@ -420,295 +420,423 @@
     </div>
 
     <script>
-        // --- Configuration ---
-        const GITHUB_REPO = 'FoodsharingFin/dynlink';
-        const GITHUB_BRANCH = 'main';
-        const CHAINS_FILE = 'chains.json';
-        const STORAGE_KEY = 'aifs_link_chains';
-        
-        // --- State Management ---
-        let chains = [];
-        let githubChains = [];
-        let currentQRSlug = null;
-        let qrCodeObj = null;
+<script>
+    // --- Configuration ---
+    const GITHUB_REPO = 'FoodsharingFin/dynlink';
+    const GITHUB_BRANCH = 'main';
+    const CHAINS_FILE = 'chains.json';
+    const STORAGE_KEY = 'aifs_link_chains';
+    
+    // --- State Management ---
+    let chains = [];
+    let githubChains = [];
+    let currentQRSlug = null;
+    let qrCodeObj = null;
 
-        // --- Sync Status ---
-        function updateSyncStatus() {
-            const statusEl = document.getElementById('sync-status');
-            const localJSON = JSON.stringify(chains.sort((a, b) => a.id - b.id));
-            const githubJSON = JSON.stringify(githubChains.sort((a, b) => a.id - b.id));
-            
-            if (localJSON === githubJSON) {
-                statusEl.className = 'sync-badge sync-synced';
-                statusEl.innerHTML = `
-                    <div class="w-2 h-2 rounded-full bg-current"></div>
-                    <span>Synced</span>
-                `;
-            } else {
-                statusEl.className = 'sync-badge sync-local';
-                statusEl.innerHTML = `
-                    <div class="w-2 h-2 rounded-full bg-current"></div>
-                    <span>Local changes</span>
-                `;
-            }
-        }
+    // --- Password Protection ---
+    function checkPassword() {
+        const input = document.getElementById('password-input').value;
+        if (input === '2024') {
+            const lockScreen = document.getElementById('lock-screen');
+            const app = document.getElementById('app');
+            
+            // Immediately show app and load data
+            app.classList.remove('hidden');
+            loadChains();
+            
+            // Then fade out lock screen
+            lockScreen.style.opacity = '0';
+            
+            // After transition, fully remove lock screen
+            setTimeout(() => {
+                lockScreen.style.display = 'none';
+            }, 300);
+        } else {
+            document.getElementById('error-msg').classList.remove('hidden');
+            document.getElementById('password-input').value = '';
+        }
+    }
 
-        // --- Password Protection ---
-        function checkPassword() {
-            const input = document.getElementById('password-input').value;
-            if (input === '2024') {
-                const lockScreen = document.getElementById('lock-screen');
-                const app = document.getElementById('app');
-                
-                // Immediately show app and load data
-                app.classList.remove('hidden');
-                loadChains();
-                
-                // Then fade out lock screen
-                lockScreen.style.opacity = '0';
-                
-                // After transition, fully remove lock screen
-                setTimeout(() => {
-                    lockScreen.style.display = 'none';
-                }, 300);
-            } else {
-                document.getElementById('error-msg').classList.remove('hidden');
-                document.getElementById('password-input').value = '';
-            }
-        }
+    function lock() {
+        location.reload();
+    }
 
-        function lock() {
-            location.reload();
-        }
+    // --- Slug Generation ---
+    function slugify(text) {
+        return text.toString().toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^\w\-]+/g, '')
+            .replace(/\-\-+/g, '-')
+            .replace(/^-+/, '')
+            .replace(/-+$/, '');
+    }
 
-        // --- Slug Generation ---
-        function slugify(text) {
-            return text.toString().toLowerCase()
-                .replace(/\s+/g, '-')
-                .replace(/[^\w\-]+/g, '')
-                .replace(/\-\-+/g, '-')
-                .replace(/^-+/, '')
-                .replace(/-+$/, '');
-        }
+    function updateSlugPreview() {
+        const note = document.getElementById('note-input').value;
+        const slug = slugify(note);
+        document.getElementById('slug-preview').textContent = slug || 'your-slug-here';
+    }
 
-        function updateSlugPreview() {
-            const note = document.getElementById('note-input').value;
-            const slug = slugify(note);
-            document.getElementById('slug-preview').textContent = slug || 'your-slug-here';
-        }
+    // --- Sync Status ---
+    function updateSyncStatus() {
+        const statusEl = document.getElementById('sync-status');
+        const localJSON = JSON.stringify(chains.sort((a, b) => a.id - b.id));
+        const githubJSON = JSON.stringify(githubChains.sort((a, b) => a.id - b.id));
+        
+        if (localJSON === githubJSON) {
+            statusEl.className = 'sync-badge sync-synced';
+            statusEl.innerHTML = `
+                <div class="w-2 h-2 rounded-full bg-current"></div>
+                <span>Synced</span>
+            `;
+        } else {
+            statusEl.className = 'sync-badge sync-local';
+            statusEl.innerHTML = `
+                <div class="w-2 h-2 rounded-full bg-current"></div>
+                <span>Local changes</span>
+            `;
+        }
+    }
 
-        // --- Sync Status ---
-        function updateSyncStatus() {
-            const statusEl = document.getElementById('sync-status');
-            const localJSON = JSON.stringify(chains.sort((a, b) => a.id - b.id));
-            const githubJSON = JSON.stringify(githubChains.sort((a, b) => a.id - b.id));
-            
-            if (localJSON === githubJSON) {
-                statusEl.className = 'sync-badge sync-synced';
-                statusEl.innerHTML = `
-                    <div class="w-2 h-2 rounded-full bg-current"></div>
-                    <span>Synced</span>
-                `;
-            } else {
-                statusEl.className = 'sync-badge sync-local';
-                statusEl.innerHTML = `
-                    <div class="w-2 h-2 rounded-full bg-current"></div>
-                    <span>Local changes</span>
-                `;
-            }
-        }
+    // --- Chain Management ---
+    async function loadChains() {
+        const statusEl = document.getElementById('sync-status');
+        statusEl.className = 'sync-badge sync-loading';
+        statusEl.innerHTML = `
+            <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
+            <span>Loading...</span>
+        `;
+    
+        try {
+            const response = await fetch(`/.netlify/functions/updateRepo?_=${Date.now()}`, {
+                method: 'GET'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                chains = data.chains || [];
+                githubChains = [...chains];
+                console.log('Loaded via Netlify:', chains.length, 'chains');
+            } else if (response.status === 404) {
+                chains = [];
+                githubChains = [];
+                console.log('No chains.json found yet.');
+            } else {
+                throw new Error('Server responded with error');
+            }
+        } catch (error) {
+            console.error('Error loading data:', error);
+            chains = [];
+            githubChains = [];
+        }
+    
+        renderChains();
+        updateSyncStatus();
+    }
 
-        // --- Chain Management ---
-        async function loadChains() {
-            const statusEl = document.getElementById('sync-status');
-            statusEl.className = 'sync-badge sync-loading';
-            statusEl.innerHTML = `
-                <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
-                <span>Loading...</span>
-            `;
-        
-            try {
-                // We call our Netlify function using a GET request
-                // The ?_=${Date.now()} prevents the browser from showing "old" cached data
-                const response = await fetch(`/.netlify/functions/updateRepo?_=${Date.now()}`, {
-                    method: 'GET'
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    // Data is inside the 'chains' array from your JSON file
-                    chains = data.chains || [];
-                    githubChains = [...chains];
-                    console.log('Loaded via Netlify:', chains.length, 'chains');
-                } else if (response.status === 404) {
-                    chains = [];
-                    githubChains = [];
-                    console.log('No chains.json found yet.');
-                } else {
-                    throw new Error('Server responded with error');
-                }
-            } catch (error) {
-                console.error('Error loading data:', error);
-                // Fallback to empty state if server is down or file is missing
-                chains = [];
-                githubChains = [];
-            }
-        
-            renderChains();
-            updateSyncStatus();
-        }
+    function saveChains() {
+        renderChains();
+        updateSyncStatus();
+    }
 
-        function saveChains() {
-            // No localStorage - chains only exist in memory until published to GitHub
-            renderChains();
-            updateSyncStatus();
-        }
+    function handleCreate(e) {
+        e.preventDefault();
+        const note = document.getElementById('note-input').value;
+        const url = document.getElementById('url-input').value;
+        const slug = slugify(note);
 
-        function handleCreate(e) {
-            e.preventDefault();
-            const note = document.getElementById('note-input').value;
-            const url = document.getElementById('url-input').value;
-            const slug = slugify(note);
+        // Check for duplicate slugs
+        if (chains.find(c => c.slug === slug)) {
+            alert('A chain with this name already exists! Please use a unique note.');
+            return;
+        }
 
-            // Check for duplicate slugs
-            if (chains.find(c => c.slug === slug)) {
-                alert('A chain with this name already exists! Please use a unique note.');
-                return;
-            }
+        const newChain = {
+            id: Date.now(),
+            slug,
+            note,
+            url,
+            created: new Date().toISOString(),
+            visits: 0
+        };
 
-            const newChain = {
-                id: Date.now(),
-                slug,
-                note,
-                url,
-                created: new Date().toISOString(),
-                visits: 0
-            };
+        chains.push(newChain);
+        saveChains();
 
-            chains.push(newChain);
-            saveChains();
+        // Reset form
+        document.getElementById('create-form').reset();
+        updateSlugPreview();
 
-            // Reset form
-            document.getElementById('create-form').reset();
-            updateSlugPreview();
+        // Show QR Panel
+        showQRPanel(slug);
+    }
 
-            // Show QR Panel
-            showQRPanel(slug);
-        }
+    function deleteChain(id) {
+        if (confirm('Delete this chain permanently?')) {
+            chains = chains.filter(c => c.id !== id);
+            saveChains();
+            document.getElementById('qr-panel').classList.add('hidden');
+        }
+    }
 
-        function deleteChain(id) {
-            if (confirm('Delete this chain permanently?')) {
-                chains = chains.filter(c => c.id !== id);
-                saveChains();
-                document.getElementById('qr-panel').classList.add('hidden');
-            }
-        }
+    function updateChain(id) {
+        const chain = chains.find(c => c.id === id);
+        const newUrl = prompt('Enter new target URL:', chain.url);
+        if (newUrl && newUrl !== chain.url) {
+            chain.url = newUrl;
+            chain.updated = new Date().toISOString();
+            saveChains();
+            if (currentQRSlug === chain.slug) {
+                showQRPanel(chain.slug);
+            }
+        }
+    }
 
-        function updateChain(id) {
-            const chain = chains.find(c => c.id === id);
-            const newUrl = prompt('Enter new target URL:', chain.url);
-            if (newUrl && newUrl !== chain.url) {
-                chain.url = newUrl;
-                chain.updated = new Date().toISOString();
-                saveChains();
-                if (currentQRSlug === chain.slug) {
-                    showQRPanel(chain.slug); // Refresh QR
-                }
-            }
-        }
+    // --- GitHub Sync Functions ---
+    async function publishToGitHub() {
+        const statusEl = document.getElementById('sync-status');
+        statusEl.className = 'sync-badge sync-loading';
+        statusEl.innerHTML = `<div class="w-2 h-2 rounded-full bg-current animate-pulse"></div><span>Publishing...</span>`;
+    
+        try {
+            const data = {
+                chains: chains,
+                exported: new Date().toISOString(),
+                version: "1.0"
+            };
+    
+            const response = await fetch('/.netlify/functions/updateRepo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+    
+            if (response.ok) {
+                githubChains = [...chains];
+                updateSyncStatus();
+                alert('✅ Published to GitHub!');
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to publish');
+            }
+        } catch (error) {
+            console.error('Publish error:', error);
+            updateSyncStatus();
+            alert('❌ Failed: ' + error.message);
+        }
+    }
 
-        // --- GitHub Sync Functions ---
-       async function publishToGitHub() {
-            const statusEl = document.getElementById('sync-status');
-            statusEl.className = 'sync-badge sync-loading';
-            statusEl.innerHTML = `<div class="w-2 h-2 rounded-full bg-current animate-pulse"></div><span>Publishing...</span>`;
-        
-            try {
-                // Prepare the data to be saved
-                const data = {
-                    chains: chains,
-                    exported: new Date().toISOString(),
-                    version: "1.0"
-                };
-        
-                // We call our Netlify function instead of the GitHub API
-                const response = await fetch('/.netlify/functions/updateRepo', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-        
-                if (response.ok) {
-                    githubChains = [...chains];
-                    updateSyncStatus();
-                    alert('✅ Published to GitHub via Netlify!');
-                } else {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to publish');
-                }
-            } catch (error) {
-                console.error('Publish error:', error);
-                updateSyncStatus();
-                alert('❌ Failed: ' + error.message);
-            }
-        }
+    function exportChains() {
+        const data = {
+            chains: chains,
+            exported: new Date().toISOString(),
+            version: "1.0"
+        };
 
-        function exportChains() {
-            const data = {
-                chains: chains,
-                exported: new Date().toISOString(),
-                version: "1.0"
-            };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = CHAINS_FILE;
+        a.click();
+        URL.revokeObjectURL(url);
 
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = CHAINS_FILE;
-            a.click();
-            URL.revokeObjectURL(url);
+        alert('Downloaded chains.json!\n\nKeep this as a backup. You can upload it to GitHub manually if needed.');
+    }
 
-            alert('Downloaded chains.json!\n\nNext steps:\n1. Commit this file to your GitHub repo\n2. The changes will be live immediately');
-        }
+    async function reloadFromGitHub() {
+        if (!confirm('This will reload chains from GitHub and discard local changes. Continue?')) {
+            return;
+        }
 
-        async function reloadFromGitHub() {
-            if (!confirm('This will reload chains from GitHub and discard local changes. Continue?')) {
-                return;
-            }
+        const statusEl = document.getElementById('sync-status');
+        statusEl.className = 'sync-badge sync-loading';
+        statusEl.innerHTML = `
+            <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
+            <span>Reloading...</span>
+        `;
 
-            const statusEl = document.getElementById('sync-status');
-            statusEl.className = 'sync-badge sync-loading';
-            statusEl.innerHTML = `
-                <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
-                <span>Reloading...</span>
-            `;
+        try {
+            const response = await fetch(`/.netlify/functions/updateRepo?_=${Date.now()}`, {
+                method: 'GET'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                chains = data.chains || [];
+                githubChains = [...chains];
+                renderChains();
+                updateSyncStatus();
+                alert('✅ Reloaded from GitHub!');
+            } else {
+                throw new Error('Failed to reload from GitHub');
+            }
+        } catch (error) {
+            console.error('Reload error:', error);
+            updateSyncStatus();
+            alert('❌ Failed to reload: ' + error.message);
+        }
+    }
 
-            try {
-                const headers = {
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache'
-                };
-                
-                if (GITHUB_TOKEN && GITHUB_TOKEN !== 'YOUR_GITHUB_TOKEN_HERE') {
-                    headers['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
-                }
-                
-                const response = await fetch(
-                    `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}?ref=${GITHUB_BRANCH}&_=${Date.now()}`,
-                    { 
-                        headers,
-                        cache: 'no-store'
-                    }
-                );
-                
-                if (response.ok) {
-                    const fileData = await response.json();
-                    const content = atob(fileData.content);
-                    const data = JSON.parse(content);
-                    chains = data.chains || [];
-                    githubChains = [...chains];
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(chains));
-                    renderChains();
-                    updateSyncStatus();
-              
+    // --- UI Rendering ---
+    function renderChains() {
+        const list = document.getElementById('chains-list');
+        const count = document.getElementById('chain-count');
+
+        count.textContent = `${chains.length} chain${chains.length !== 1 ? 's' : ''}`;
+
+        if (chains.length === 0) {
+            list.innerHTML = `
+                <div class="text-center text-slate-500 py-12">
+                    <p>No chains created yet.</p>
+                    <p class="text-sm mt-2">Create your first link chain on the left!</p>
+                </div>
+            `;
+            return;
+        }
+
+        list.innerHTML = chains.map(chain => {
+            const shortUrl = `https://foodsharingfin.github.io/dynlink/?id=${chain.slug}`;
+            const displayUrl = chain.url.length > 50 ? chain.url.substring(0, 50) + '...' : chain.url;
+            
+            return `
+                <div class="glass-card rounded-xl p-4 hover:border-indigo-500/30 transition-all group">
+                    <div class="flex justify-between items-start gap-3">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">${chain.slug}</span>
+                                ${chain.updated ? '<span class="text-xs text-amber-400">●</span>' : ''}
+                            </div>
+                            <p class="text-sm font-medium text-white mb-1">${chain.note}</p>
+                            <a href="${chain.url}" target="_blank" class="text-xs text-slate-400 hover:text-indigo-400 transition-colors truncate block">
+                                ${displayUrl}
+                            </a>
+                            <p class="text-xs text-slate-500 mt-2">
+                                Created ${new Date(chain.created).toLocaleDateString()}
+                                ${chain.updated ? ` • Updated ${new Date(chain.updated).toLocaleDateString()}` : ''}
+                            </p>
+                        </div>
+                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="showQRPanel('${chain.slug}')" class="p-2 hover:bg-indigo-500/20 rounded-lg transition-colors" title="Generate QR Code">
+                                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                            </button>
+                            <button onclick="updateChain(${chain.id})" class="p-2 hover:bg-blue-500/20 rounded-lg transition-colors" title="Edit URL">
+                                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </button>
+                            <button onclick="copyShortUrl('${shortUrl}')" class="p-2 hover:bg-green-500/20 rounded-lg transition-colors" title="Copy short link">
+                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            </button>
+                            <button onclick="deleteChain(${chain.id})" class="p-2 hover:bg-red-500/20 rounded-lg transition-colors" title="Delete">
+                                <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function copyShortUrl(url) {
+        navigator.clipboard.writeText(url).then(() => {
+            alert('✅ Short link copied to clipboard!\n\n' + url);
+        });
+    }
+
+    // --- QR Code Functions ---
+    function showQRPanel(slug) {
+        const chain = chains.find(c => c.slug === slug);
+        if (!chain) return;
+
+        currentQRSlug = slug;
+        const panel = document.getElementById('qr-panel');
+        const qrContainer = document.getElementById('qrcode');
+        const colorPicker = document.getElementById('qr-color');
+        
+        panel.classList.remove('hidden');
+        qrContainer.innerHTML = '';
+
+        const shortUrl = `https://foodsharingfin.github.io/dynlink/?id=${slug}`;
+        
+        qrCodeObj = qrcode(0, 'H');
+        qrCodeObj.addData(shortUrl);
+        qrCodeObj.make();
+        
+        qrContainer.innerHTML = qrCodeObj.createSvgTag(4);
+        updateQRColor();
+
+        // Scroll to QR panel
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function updateQRColor() {
+        const color = document.getElementById('qr-color').value;
+        document.getElementById('color-hex').textContent = color;
+        
+        const svg = document.querySelector('#qrcode svg');
+        if (svg) {
+            const rects = svg.querySelectorAll('rect');
+            rects.forEach(rect => {
+                if (rect.getAttribute('fill') === '#000000' || rect.style.fill === 'rgb(0, 0, 0)') {
+                    rect.setAttribute('fill', color);
+                }
+            });
+        }
+    }
+
+    function downloadQR(format) {
+        if (!currentQRSlug) return;
+
+        const chain = chains.find(c => c.slug === currentQRSlug);
+        const svg = document.querySelector('#qrcode svg');
+        if (!svg) return;
+
+        const sanitizedSlug = chain.slug.replace(/[^a-z0-9-]/gi, '_');
+
+        if (format === 'svg') {
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const blob = new Blob([svgData], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `qr-${sanitizedSlug}.svg`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } else if (format === 'png') {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = function() {
+                canvas.width = 1000;
+                canvas.height = 1000;
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                canvas.toBlob(blob => {
+                    const pngUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = pngUrl;
+                    a.download = `qr-${sanitizedSlug}.png`;
+                    a.click();
+                    URL.revokeObjectURL(pngUrl);
+                });
+                
+                URL.revokeObjectURL(url);
+            };
+            
+            img.src = url;
+        }
+    }
+
+    // --- Initialize on page load ---
+    document.getElementById('password-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            checkPassword();
+        }
+    });
+</script>
