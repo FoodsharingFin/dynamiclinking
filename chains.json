@@ -1,5 +1,14 @@
 {
-  "chains": [],
-  "exported": "2026-02-14T22:50:33.590Z",
+  "chains": [
+    {
+      "id": 1234567890,
+      "slug": "test",
+      "note": "Test Chain",
+      "url": "https://example.com",
+      "created": "2026-02-21T20:30:32.277Z",
+      "visits": 0
+    }
+  ],
+  "exported": "2026-02-21T20:30:32.277Z",
   "version": "1.0"
 }
