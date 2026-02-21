@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>A!FS Link Router</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"></script>d
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <style>
@@ -426,6 +426,8 @@
     const GITHUB_BRANCH = 'main';
     const CHAINS_FILE = 'chains.json';
     const STORAGE_KEY = 'aifs_link_chains';
+    const NETLIFY_FUNCTION_URL = 'https://magical-bunny-78db25.netlify.app/.netlify/functions/updateRepo';
+
     
     // --- State Management ---
     let chains = [];
@@ -511,6 +513,7 @@
 
     // --- Chain Management ---
     async function loadChains() {
+       
         const statusEl = document.getElementById('sync-status');
         statusEl.className = 'sync-badge sync-loading';
         statusEl.innerHTML = `
@@ -519,9 +522,9 @@
         `;
     
         try {
-            const response = await fetch(`/.netlify/functions/updateRepo?_=${Date.now()}`, {
+             const response = await fetch(`${NETLIFY_FUNCTION_URL}?_=${Date.now()}`, {
                 method: 'GET'
-            });
+                });
             
             if (response.ok) {
                 const data = await response.json();
@@ -605,6 +608,7 @@
 
     // --- GitHub Sync Functions ---
     async function publishToGitHub() {
+       
         const statusEl = document.getElementById('sync-status');
         statusEl.className = 'sync-badge sync-loading';
         statusEl.innerHTML = `<div class="w-2 h-2 rounded-full bg-current animate-pulse"></div><span>Publishing...</span>`;
@@ -616,7 +620,7 @@
                 version: "1.0"
             };
     
-            const response = await fetch('/.netlify/functions/updateRepo', {
+             const response = await fetch(NETLIFY_FUNCTION_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -659,7 +663,7 @@
         if (!confirm('This will reload chains from GitHub and discard local changes. Continue?')) {
             return;
         }
-
+    
         const statusEl = document.getElementById('sync-status');
         statusEl.className = 'sync-badge sync-loading';
         statusEl.innerHTML = `
@@ -668,9 +672,10 @@
         `;
 
         try {
-            const response = await fetch(`/.netlify/functions/updateRepo?_=${Date.now()}`, {
+            const response = await fetch(`${NETLIFY_FUNCTION_URL}?_=${Date.now()}`, {
                 method: 'GET'
             });
+
             
             if (response.ok) {
                 const data = await response.json();
