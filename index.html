@@ -672,37 +672,43 @@
         }
 
         async function reloadFromGitHub() {
-            if (!confirm('This will reload chains from GitHub and discard local changes. Continue?')) {
-                return;
-            }
-        
-            const statusEl = document.getElementById('sync-status');
-            statusEl.className = 'sync-badge sync-loading';
-            statusEl.innerHTML = `
-                <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
-                <span>Reloading...</span>
-            `;
-        
-            try {
-                // Use your Netlify function instead of calling GitHub directly
-                const response = await fetch(`/.netlify/functions/updateRepo?_=${Date.now()}`, {
-                    method: 'GET'
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    chains = data.chains || [];
-                    githubChains = [...chains];
-                    renderChains();
-                    updateSyncStatus();
-                    alert('✅ Reloaded from GitHub!');
-                } else {
-                    throw new Error('Failed to reload from GitHub');
-                }
-            } catch (error) {
-                console.error('Reload error:', error);
-                updateSyncStatus();
-                alert('❌ Failed to reload: ' + error.message);
-            }
-        }
+            if (!confirm('This will reload chains from GitHub and discard local changes. Continue?')) {
+                return;
+            }
+
+            const statusEl = document.getElementById('sync-status');
+            statusEl.className = 'sync-badge sync-loading';
+            statusEl.innerHTML = `
+                <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
+                <span>Reloading...</span>
+            `;
+
+            try {
+                const headers = {
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                };
+                
+                if (GITHUB_TOKEN && GITHUB_TOKEN !== 'YOUR_GITHUB_TOKEN_HERE') {
+                    headers['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
+                }
+                
+                const response = await fetch(
+                    `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}?ref=${GITHUB_BRANCH}&_=${Date.now()}`,
+                    { 
+                        headers,
+                        cache: 'no-store'
+                    }
+                );
+                
+                if (response.ok) {
+                    const fileData = await response.json();
+                    const content = atob(fileData.content);
+                    const data = JSON.parse(content);
+                    chains = data.chains || [];
+                    githubChains = [...chains];
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(chains));
+                    renderChains();
+                    updateSyncStatus();
               
