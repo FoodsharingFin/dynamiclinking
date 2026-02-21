@@ -7,7 +7,7 @@ exports.handler = async (event) => {
     }
 
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // Picked up from Netlify's "Vault"
-    const REPO = 'foodsharingfin/dynamiclinking';
+    const REPO = 'foodsharingfin/dynlink';
     const FILE_PATH = 'chains.json';
 
     try {
