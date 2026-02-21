@@ -2,7 +2,7 @@ const fetch = require('node-fetch');
 
 exports.handler = async (event) => {
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-    const REPO = 'RiSchmi/dynamiclinking';
+    const REPO = 'FoodsharingFin/dynlink';
     const FILE_PATH = 'chains.json';
 
     // --- HANDLE GET REQUEST (LOADING DATA) ---
