@@ -435,14 +435,24 @@
 
     // --- Password Protection ---
     function checkPassword() {
+        console.log('checkPassword called');
         const input = document.getElementById('password-input').value;
+        console.log('Password entered:', input);
+        
         if (input === '2024') {
+            console.log('Password correct, attempting to unlock...');
             const lockScreen = document.getElementById('lock-screen');
             const app = document.getElementById('app');
             
+            console.log('lockScreen element:', lockScreen);
+            console.log('app element:', app);
+            
             // Immediately show app and load data
             app.classList.remove('hidden');
+            console.log('Removed hidden class from app');
+            
             loadChains();
+            console.log('Called loadChains()');
             
             // Then fade out lock screen
             lockScreen.style.opacity = '0';
@@ -450,13 +460,14 @@
             // After transition, fully remove lock screen
             setTimeout(() => {
                 lockScreen.style.display = 'none';
+                console.log('Lock screen hidden');
             }, 300);
         } else {
+            console.log('Password incorrect');
             document.getElementById('error-msg').classList.remove('hidden');
             document.getElementById('password-input').value = '';
         }
     }
-
     function lock() {
         location.reload();
     }
