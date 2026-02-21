@@ -1,22 +1,5 @@
 {
-  "chains": [
-    {
-      "id": 1234567890,
-      "slug": "test",
-      "note": "Test Chain",
-      "url": "https://example.com",
-      "created": "2026-02-21T20:30:32.277Z",
-      "visits": 0
-    },
-    {
-      "id": 1771706523575,
-      "slug": "ai",
-      "note": "AI",
-      "url": "https://en.wikipedia.org/wiki/Kimi_(chatbot)",
-      "created": "2026-02-21T20:42:03.575Z",
-      "visits": 0
-    }
-  ],
-  "exported": "2026-02-21T20:42:08.422Z",
+  "chains": [],
+  "exported": "2026-02-21T20:43:50.500Z",
   "version": "1.0"
 }
