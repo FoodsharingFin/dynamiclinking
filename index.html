@@ -424,8 +424,6 @@
         const GITHUB_REPO = 'RiSchmi/dynamiclinking';
         const GITHUB_BRANCH = 'main';
         const CHAINS_FILE = 'chains.json';
-        const GITHUB_TOKEN = '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';
-        
         const STORAGE_KEY = 'aifs_link_chains';
         
         // --- State Management ---
@@ -624,74 +622,34 @@
         }
 
         // --- GitHub Sync Functions ---
-        async function publishToGitHub() {
+       async function publishToGitHub() {
             const statusEl = document.getElementById('sync-status');
             statusEl.className = 'sync-badge sync-loading';
-            statusEl.innerHTML = `
-                <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
-                <span>Publishing...</span>
-            `;
-
+            statusEl.innerHTML = `<div class="w-2 h-2 rounded-full bg-current animate-pulse"></div><span>Publishing...</span>`;
+        
             try {
-                // Get current file SHA
-                const getResponse = await fetch(
-                    `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${GITHUB_TOKEN}`,
-                            'Accept': 'application/vnd.github.v3+json'
-                        }
-                    }
-                );
-
-                let sha = null;
-                if (getResponse.ok) {
-                    const fileData = await getResponse.json();
-                    sha = fileData.sha;
-                }
-
-                // Prepare data
+                // Prepare the data to be saved
                 const data = {
                     chains: chains,
                     exported: new Date().toISOString(),
                     version: "1.0"
                 };
-
-                const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-
-                const commitData = {
-                    message: `Update chains - ${new Date().toLocaleString()}`,
-                    content: content,
-                    branch: GITHUB_BRANCH
-                };
-
-                if (sha) {
-                    commitData.sha = sha;
-                }
-
-                // Commit
-                const putResponse = await fetch(
-                    `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}`,
-                    {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': `Bearer ${GITHUB_TOKEN}`,
-                            'Accept': 'application/vnd.github.v3+json',
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(commitData)
-                    }
-                );
-
-                if (putResponse.ok) {
+        
+                // We call our Netlify function instead of the GitHub API
+                const response = await fetch('/.netlify/functions/updateRepo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+        
+                if (response.ok) {
                     githubChains = [...chains];
                     updateSyncStatus();
-                    alert('✅ Published to GitHub!');
+                    alert('✅ Published to GitHub via Netlify!');
                 } else {
-                    const error = await putResponse.json();
-                    throw new Error(error.message || 'Failed to commit');
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to publish');
                 }
-
             } catch (error) {
                 console.error('Publish error:', error);
                 updateSyncStatus();
