@@ -26,48 +26,6 @@ Create a single, permanent QR code that can point to different URLs over time. P
 - **Zero Dependencies**: Runs entirely in the browser, no server needed
 - **Visit Tracking**: See how many times each link has been accessed
 
-## 🚀 Quick Start
-
-### 1. Fork & Deploy
-
-1. Fork this repository to your GitHub account
-2. Enable GitHub Pages: Settings → Pages → Source: `main` branch
-3. Your router is now live at: `https://[username].github.io/dynamiclinking`
-
-### 2. Configure Your Token
-
-Create a GitHub Personal Access Token:
-
-1. GitHub.com → Settings → Developer Settings → Personal Access Tokens → Fine-grained tokens
-2. Click "Generate new token"
-3. **Token name:** `AIFS Link Router`
-4. **Repository access:** Only select repositories → Choose your `dynamiclinking` repo
-5. **Permissions:** 
-   - Repository Permissions → Contents → **Read and write**
-6. Generate token and copy it
-
-Open `index.html` and replace the token on line ~386:
-```javascript
-const GITHUB_TOKEN = 'your_token_here';
-```
-
-### 3. Create Your First Chain
-
-1. Visit your deployed site
-2. Unlock with password: `2024` (the year A!FS was founded)
-3. Create a new chain:
-   - **Note:** "Instagram Bio" (becomes slug: `instagram-bio`)
-   - **Target URL:** `https://example.com/current-project`
-4. Click "Publish to GitHub"
-5. Your link is now live at: `https://[username].github.io/dynamiclinking?id=instagram-bio`
-
-### 4. Generate & Use QR Code
-
-1. Click the QR icon on your chain
-2. Customize the color if desired
-3. Download as PNG (for printing) or SVG (for digital use)
-4. Print it, share it, embed it anywhere!
-
 ## 📖 How It Works
 
 ```
@@ -116,27 +74,6 @@ A "chain" is a slug → URL mapping:
 - **Reload**: Discard local changes and pull fresh from GitHub
 - **Sync Status Badge**: Shows if you have unpublished changes
 
-## 🔐 Security
-
-**What's Protected:**
-- Management interface (password required)
-- GitHub API token (embedded in code but scoped to only this repo)
-
-**What's Public:**
-- The redirect functionality (anyone can use `?id=slug` links)
-- Your QR codes and destination URLs
-- `chains.json` file (must be public for redirects to work)
-
-**Token Permissions:**
-The token can ONLY:
-- Read/write `chains.json` in this specific repo
-- Nothing else in your GitHub account
-
-**Risk Assessment:**
-If someone extracts your token from the page source, they can:
-- Modify your link chains
-- Nothing else (token is scoped tightly)
-
 You can revoke and regenerate tokens anytime from GitHub settings.
 
 ## 📝 Workflow Example
@@ -157,26 +94,6 @@ You can revoke and regenerate tokens anytime from GitHub settings.
 3. **Week 3, 4, 5...**
    - Repeat: update URL, publish
    - Never reprint posters
-
-## 🛠️ Customization
-
-### Change Password
-
-Edit line ~221 in `index.html`:
-```javascript
-if (input === '2024') {  // Change this
-```
-
-### Branding
-
-Update colors in CSS (lines ~10-15):
-```css
-:root {
-    --primary: #6366f1;    /* Main color */
-    --secondary: #a855f7;  /* Accent color */
-    --dark: #0f172a;       /* Background */
-}
-```
 
 ### Domain
 
