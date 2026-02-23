@@ -889,46 +889,45 @@
         });
 
         function downloadQR(format) {
-            const svg = document.querySelector('#qrcode svg');
-            if (!svg) {
-                alert('Please generate a QR code first.');
-                return;
-            }
-
-            if (format === 'svg') {
-                // Download as SVG
-                const svgData = new XMLSerializer().serializeToString(svg);
-                const blob = new Blob([svgData], { type: 'image/svg+xml' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `qr-${currentQRSlug}.svg`;
-                a.click();
-                URL.revokeObjectURL(url);
-            } else {
-                // Download as PNG with transparent background
-                const svgData = new XMLSerializer().serializeToString(svg);
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const img = new Image();
-                
-                img.onload = function() {
-                    canvas.width = 1000;
-                    canvas.height = 1000;
-                    // Don't fill white background for transparency
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const svg = document.querySelector('#qrcode svg');
+                if (!svg) {
+                    alert('Please generate a QR code first.');
+                    return;
+                }
+            
+                if (format === 'svg') {
+                    // Download as SVG
+                    const svgData = new XMLSerializer().serializeToString(svg);
+                    const blob = new Blob([svgData], { type: 'image/svg+xml' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `qr-${currentQRSlug}.svg`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                } else {
+                    // Download as PNG with transparent background
+                    const svgData = new XMLSerializer().serializeToString(svg);
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const img = new Image();
                     
-                    const pngFile = canvas.toDataURL('image/png');
-                    const downloadLink = document.createElement('a');
-                    downloadLink.download = `qr-${currentQRSlug}.png`;
-                    downloadLink.href = pngFile;
-                    downloadLink.click();
-                };
-                
-                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+                    img.onload = function() {
+                        canvas.width = 1000;
+                        canvas.height = 1000;
+                        // Removed white fill for transparency - canvas is transparent by default
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        
+                        const pngFile = canvas.toDataURL('image/png');
+                        const downloadLink = document.createElement('a');
+                        downloadLink.download = `qr-${currentQRSlug}.png`;
+                        downloadLink.href = pngFile;
+                        downloadLink.click();
+                    };
+                    
+                    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+                }
             }
-        }
-
         // --- Redirect Logic ---
         function handleRedirect() {
             const params = new URLSearchParams(window.location.search);
@@ -947,7 +946,7 @@
                     // Redirect after a short delay to show the loading screen
                     setTimeout(() => {
                         window.location.replace(chain.url);
-                    }, 800);
+                    }, 1200);
                 } else {
                     document.body.innerHTML = `
                         <div class="min-h-screen flex items-center justify-center bg-slate-900 text-white">
