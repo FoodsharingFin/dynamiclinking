@@ -1,9 +1,0 @@
-name = "dynlink-api"
-main = "src/index.ts"
-compatibility_date = "2025-02-22"
-
-[vars]
-GITHUB_REPO = "FoodsharingFin/dynlink"
-
-# Secrets (don't put actual token here - we'll add it via CLI)
-# GITHUB_TOKEN = "will be set via: wrangler secret put GITHUB_TOKEN"
