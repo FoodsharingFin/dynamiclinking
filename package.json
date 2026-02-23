@@ -1,8 +1,14 @@
 {
-  "name": "aifs-link-router",
+  "name": "dynlink-worker",
   "version": "1.0.0",
-  "description": "Dynamic QR link management",
-  "dependencies": {
-    "node-fetch": "^2.6.7"
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250122.0",
+    "wrangler": "^3.91.0",
+    "typescript": "^5.7.2"
   }
 }
