@@ -889,44 +889,45 @@
         });
 
         function downloadQR(format) {
-                const svg = document.querySelector('#qrcode svg');
-                if (!svg) {
-                    alert('Please generate a QR code first.');
-                    return;
-                }
+            const svg = document.querySelector('#qrcode svg');
+            if (!svg) {
+                alert('Please generate a QR code first.');
+                return;
+            }
             
-                if (format === 'svg') {
-                    // Download as SVG
-                    const svgData = new XMLSerializer().serializeToString(svg);
-                    const blob = new Blob([svgData], { type: 'image/svg+xml' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `qr-${currentQRSlug}.svg`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                } else {
-                    // Download as PNG with transparent background
-                    const svgData = new XMLSerializer().serializeToString(svg);
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    const img = new Image();
+            if (format === 'svg') {
+                // Download as SVG
+                const svgData = new XMLSerializer().serializeToString(svg);
+                const blob = new Blob([svgData], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `qr-${currentQRSlug}.svg`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } else {
+                // Download as PNG with transparent background
+                const svgData = new XMLSerializer().serializeToString(svg);
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d', { alpha: true }); // Explicitly enable alpha
+                const img = new Image();
+                
+                img.onload = function() {
+                    canvas.width = 1000;
+                    canvas.height = 1000;
+                    // Canvas is now transparent by default with alpha enabled
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); // Ensure transparency
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     
-                    img.onload = function() {
-                        canvas.width = 1000;
-                        canvas.height = 1000;
-                        // Removed white fill for transparency - canvas is transparent by default
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        
-                        const pngFile = canvas.toDataURL('image/png');
-                        const downloadLink = document.createElement('a');
-                        downloadLink.download = `qr-${currentQRSlug}.png`;
-                        downloadLink.href = pngFile;
-                        downloadLink.click();
-                    };
-                    
-                    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-                }
+                    const pngFile = canvas.toDataURL('image/png');
+                    const downloadLink = document.createElement('a');
+                    downloadLink.download = `qr-${currentQRSlug}.png`;
+                    downloadLink.href = pngFile;
+                    downloadLink.click();
+                };
+                
+                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+            }
             }
         // --- Redirect Logic ---
         function handleRedirect() {
