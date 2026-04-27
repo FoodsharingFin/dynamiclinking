@@ -24,9 +24,9 @@
       "created": "2026-02-21T21:31:00.834Z",
       "visits": 0,
       "redirectMessage": "",
-      "redirectSubmessage": "The next page will load for 30 seconds to build the website. Stay with us ;).",
-      "redirectDuration": 5,
-      "updated": "2026-04-27T18:06:24.319Z"
+      "redirectSubmessage": "Click \"get this app back up\" on the next page. Building the website will take 30 seconds. Thanks for waiting!",
+      "redirectDuration": 7,
+      "updated": "2026-04-27T18:08:16.276Z"
     },
     {
       "id": 1771865754804,
@@ -37,6 +37,6 @@
       "visits": 0
     }
   ],
-  "exported": "2026-04-27T18:06:29.779Z",
+  "exported": "2026-04-27T18:08:21.690Z",
   "version": "1.0"
 }
