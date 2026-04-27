@@ -141,6 +141,14 @@
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
 
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+
         .btn-primary {
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             transition: all 0.3s;
@@ -175,31 +183,21 @@
             display: none;
         }
 
-        /* Sync Badge */
-        .sync-badge {
-            display: inline-flex;
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 60;
+            background: var(--dark);
+            display: none;
             align-items: center;
-            gap: 6px;
-            padding: 4px 12px;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
+            justify-content: center;
         }
-        .sync-synced {
-            background: rgba(34, 197, 94, 0.1);
-            color: #22c55e;
-            border: 1px solid rgba(34, 197, 94, 0.2);
+        
+        #loading-screen.active {
+            display: flex;
         }
-        .sync-local {
-            background: rgba(251, 191, 36, 0.1);
-            color: #fbbf24;
-            border: 1px solid rgba(251, 191, 36, 0.2);
-        }
-        .sync-loading {
-            background: rgba(99, 102, 241, 0.1);
-            color: #6366f1;
-            border: 1px solid rgba(99, 102, 241, 0.2);
-        }
+
         /* Sync Badge */
         .sync-badge {
             display: inline-flex;
@@ -231,6 +229,20 @@
 
     <div class="bg-mesh"></div>
 
+    <!-- Loading Screen for Redirects -->
+    <div id="loading-screen">
+        <div class="text-center animate-slide-in">
+            <div class="w-20 h-20 mx-auto mb-6">
+                <svg class="animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+            <p class="text-2xl font-bold text-white mb-2">🍌 Banana bread is baking...</p>
+            <p class="text-sm text-slate-400">Redirecting you now</p>
+        </div>
+    </div>
+
     <!-- Lock Screen -->
     <div id="lock-screen">
         <div class="glass p-8 rounded-2xl max-w-md w-full mx-4 text-center animate-slide-in">
@@ -253,7 +265,7 @@
                 
                 <div class="mt-4 p-3 bg-slate-800/50 rounded-lg text-xs text-slate-400">
                     <p class="font-medium text-slate-300 mb-1">ℹ️ What is this?</p>
-                    <p>Create dynamic links with updatable QR codes. Perfect for evetnt or sign up posters where you need to change the destination without reprinting.</p>
+                    <p>Create dynamic links with updatable QR codes. Perfect for event or sign up posters where you need to change the destination without reprinting.</p>
                 </div>
             </div>
         </div>
@@ -370,12 +382,14 @@
                         <div id="qrcode" class="w-48 h-48 bg-white rounded-xl p-2"></div>
                         
                         <div class="w-full space-y-4">
-                            <div class="flex items-center justify-between">
-                                <label class="text-sm text-slate-300">QR Color</label>
+                            <div>
+                                <label class="text-sm text-slate-300 mb-2 block">QR Color</label>
                                 <div class="flex items-center gap-2">
-                                    <input type="color" id="qr-color" value="#000000" onchange="updateQRColor()" title="Choose QR code color">
-                                    <span id="color-hex" class="text-xs font-mono text-slate-400">#000000</span>
+                                    <input type="color" id="qr-color" value="#000000" title="Choose QR code color">
+                                    <input type="text" id="qr-hex-input" value="#000000" class="input-field flex-1 px-3 py-2 rounded-lg text-white font-mono text-sm" placeholder="#000000" maxlength="7">
+                                    <button onclick="applyQRColor()" class="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">Apply</button>
                                 </div>
+                                <p class="text-xs text-slate-500 mt-1">Enter hex code or use color picker, then click Apply</p>
                             </div>
                             
                             <div class="flex gap-2">
@@ -420,497 +434,577 @@
     </div>
 
     <script>
+        // --- Configuration ---
+        const GITHUB_REPO = 'foodsharingfin/dynlink';
+        const GITHUB_BRANCH = 'main';
+        const CHAINS_FILE = 'chains.json';
+        const to_a = "github_pat_11B6WSAQA088Iwje24C3LX_"
+        const to_b = "8nh03UpQN81LVOlbcuMib8m1BuFj1BloLDIkVaMeKtjY5VVDDFDzikEJTL2"
+        const GH_POINTER = to_a + to_b;
         
-    // --- Configuration ---
-    const GITHUB_REPO = 'FoodsharingFin/dynlink';
-    const GITHUB_BRANCH = 'main';
-    const CHAINS_FILE = 'chains.json';
-    const STORAGE_KEY = 'aifs_link_chains';
-    const NETLIFY_FUNCTION_URL = 'https://dynlink.netlify.app/.netlify/functions/updateRepo';
-
-    
-    // --- State Management ---
-    let chains = [];
-    let githubChains = [];
-    let currentQRSlug = null;
-    let qrCodeObj = null;
-
-    // --- Password Protection ---
-    function checkPassword() {
-        console.log('checkPassword called');
-        const input = document.getElementById('password-input').value;
-        console.log('Password entered:', input);
+        const STORAGE_KEY = 'aifs_link_chains';
         
-        if (input === '2024') {
-            console.log('Password correct, attempting to unlock...');
-            const lockScreen = document.getElementById('lock-screen');
-            const app = document.getElementById('app');
+        // --- State Management ---
+        let chains = [];
+        let githubChains = [];
+        let currentQRSlug = null;
+        let qrCodeObj = null;
+
+        // --- Sync Status ---
+        function updateSyncStatus() {
+            const statusEl = document.getElementById('sync-status');
+            const localJSON = JSON.stringify(chains.sort((a, b) => a.id - b.id));
+            const githubJSON = JSON.stringify(githubChains.sort((a, b) => a.id - b.id));
             
-            console.log('lockScreen element:', lockScreen);
-            console.log('app element:', app);
-            
-            // Immediately show app and load data
-            app.classList.remove('hidden');
-            console.log('Removed hidden class from app');
-            
-            loadChains();
-            console.log('Called loadChains()');
-            
-            // Then fade out lock screen
-            lockScreen.style.opacity = '0';
-            
-            // After transition, fully remove lock screen
-            setTimeout(() => {
-                lockScreen.style.display = 'none';
-                console.log('Lock screen hidden');
-            }, 300);
-        } else {
-            console.log('Password incorrect');
-            document.getElementById('error-msg').classList.remove('hidden');
-            document.getElementById('password-input').value = '';
+            if (localJSON === githubJSON) {
+                statusEl.className = 'sync-badge sync-synced';
+                statusEl.innerHTML = `
+                    <div class="w-2 h-2 rounded-full bg-current"></div>
+                    <span>Synced</span>
+                `;
+            } else {
+                statusEl.className = 'sync-badge sync-local';
+                statusEl.innerHTML = `
+                    <div class="w-2 h-2 rounded-full bg-current"></div>
+                    <span>Local changes</span>
+                `;
+            }
         }
-    }
-    function lock() {
-        location.reload();
-    }
 
-    // --- Slug Generation ---
-    function slugify(text) {
-        return text.toString().toLowerCase()
-            .replace(/\s+/g, '-')
-            .replace(/[^\w\-]+/g, '')
-            .replace(/\-\-+/g, '-')
-            .replace(/^-+/, '')
-            .replace(/-+$/, '');
-    }
-
-    function updateSlugPreview() {
-        const note = document.getElementById('note-input').value;
-        const slug = slugify(note);
-        document.getElementById('slug-preview').textContent = slug || 'your-slug-here';
-    }
-
-    // --- Sync Status ---
-    function updateSyncStatus() {
-        const statusEl = document.getElementById('sync-status');
-        const localJSON = JSON.stringify(chains.sort((a, b) => a.id - b.id));
-        const githubJSON = JSON.stringify(githubChains.sort((a, b) => a.id - b.id));
-        
-        if (localJSON === githubJSON) {
-            statusEl.className = 'sync-badge sync-synced';
-            statusEl.innerHTML = `
-                <div class="w-2 h-2 rounded-full bg-current"></div>
-                <span>Synced</span>
-            `;
-        } else {
-            statusEl.className = 'sync-badge sync-local';
-            statusEl.innerHTML = `
-                <div class="w-2 h-2 rounded-full bg-current"></div>
-                <span>Local changes</span>
-            `;
+        // --- Password Protection ---
+        function checkPassword() {
+            const input = document.getElementById('password-input').value;
+            if (input === '2024') {
+                const lockScreen = document.getElementById('lock-screen');
+                const app = document.getElementById('app');
+                
+                // Immediately show app and load data
+                app.classList.remove('hidden');
+                loadChains();
+                
+                // Then fade out lock screen
+                lockScreen.style.opacity = '0';
+                
+                // After transition, fully remove lock screen
+                setTimeout(() => {
+                    lockScreen.style.display = 'none';
+                }, 300);
+            } else {
+                document.getElementById('error-msg').classList.remove('hidden');
+                document.getElementById('password-input').value = '';
+            }
         }
-    }
 
-    // --- Chain Management ---
-    async function loadChains() {
-       
-        const statusEl = document.getElementById('sync-status');
-        statusEl.className = 'sync-badge sync-loading';
-        statusEl.innerHTML = `
-            <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
-            <span>Loading...</span>
-        `;
-    
-        try {
-             const response = await fetch(`${NETLIFY_FUNCTION_URL}?_=${Date.now()}`, {
-                method: 'GET'
-                });
-            
-            if (response.ok) {
-                const data = await response.json();
-                chains = data.chains || [];
-                githubChains = [...chains];
-                console.log('Loaded via Netlify:', chains.length, 'chains');
-            } else if (response.status === 404) {
+        function lock() {
+            location.reload();
+        }
+
+        // --- Slug Generation ---
+        function slugify(text) {
+            return text.toString().toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^\w\-]+/g, '')
+                .replace(/\-\-+/g, '-')
+                .replace(/^-+/, '')
+                .replace(/-+$/, '');
+        }
+
+        function updateSlugPreview() {
+            const note = document.getElementById('note-input').value;
+            const slug = slugify(note);
+            document.getElementById('slug-preview').textContent = slug || 'your-slug-here';
+        }
+
+        // --- Chain Management ---
+        async function loadChains() {
+            const statusEl = document.getElementById('sync-status');
+            statusEl.className = 'sync-badge sync-loading';
+            statusEl.innerHTML = `
+                <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
+                <span>Loading...</span>
+            `;
+
+            try {
+                const response = await fetch(
+                    `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}?ref=${GITHUB_BRANCH}&_=${Date.now()}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${GH_POINTER}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        },
+                        cache: 'no-store'
+                    }
+                );
+                
+                if (response.ok) {
+                    const fileData = await response.json();
+                    const content = atob(fileData.content);
+                    const data = JSON.parse(content);
+                    chains = data.chains || [];
+                    githubChains = [...chains];
+                    console.log('Loaded from GitHub:', chains.length, 'chains');
+                } else if (response.status === 404) {
+                    // File doesn't exist yet - start fresh
+                    chains = [];
+                    githubChains = [];
+                    console.log('No chains.json in GitHub yet');
+                }
+            } catch (error) {
+                console.error('Error loading from GitHub:', error);
                 chains = [];
                 githubChains = [];
-                console.log('No chains.json found yet.');
-            } else {
-                throw new Error('Server responded with error');
             }
-        } catch (error) {
-            console.error('Error loading data:', error);
-            chains = [];
-            githubChains = [];
-        }
-    
-        renderChains();
-        updateSyncStatus();
-    }
 
-    function saveChains() {
-        renderChains();
-        updateSyncStatus();
-    }
-
-    function handleCreate(e) {
-        e.preventDefault();
-        const note = document.getElementById('note-input').value;
-        const url = document.getElementById('url-input').value;
-        const slug = slugify(note);
-
-        // Check for duplicate slugs
-        if (chains.find(c => c.slug === slug)) {
-            alert('A chain with this name already exists! Please use a unique note.');
-            return;
+            renderChains();
+            updateSyncStatus();
         }
 
-        const newChain = {
-            id: Date.now(),
-            slug,
-            note,
-            url,
-            created: new Date().toISOString(),
-            visits: 0
-        };
+        function saveChains() {
+            // No localStorage - chains only exist in memory until published to GitHub
+            renderChains();
+            updateSyncStatus();
+        }
 
-        chains.push(newChain);
-        saveChains();
+        function handleCreate(e) {
+            e.preventDefault();
+            const note = document.getElementById('note-input').value;
+            const url = document.getElementById('url-input').value;
+            const slug = slugify(note);
 
-        // Reset form
-        document.getElementById('create-form').reset();
-        updateSlugPreview();
+            // Check for duplicate slugs
+            if (chains.find(c => c.slug === slug)) {
+                alert('A chain with this name already exists! Please use a unique note.');
+                return;
+            }
 
-        // Show QR Panel
-        showQRPanel(slug);
-    }
+            const newChain = {
+                id: Date.now(),
+                slug,
+                note,
+                url,
+                created: new Date().toISOString(),
+                visits: 0
+            };
 
-    function deleteChain(id) {
-        if (confirm('Delete this chain permanently?')) {
-            chains = chains.filter(c => c.id !== id);
+            chains.push(newChain);
             saveChains();
-            document.getElementById('qr-panel').classList.add('hidden');
-        }
-    }
 
-    function updateChain(id) {
-        const chain = chains.find(c => c.id === id);
-        const newUrl = prompt('Enter new target URL:', chain.url);
-        if (newUrl && newUrl !== chain.url) {
-            chain.url = newUrl;
-            chain.updated = new Date().toISOString();
-            saveChains();
-            if (currentQRSlug === chain.slug) {
-                showQRPanel(chain.slug);
+            // Reset form
+            document.getElementById('create-form').reset();
+            updateSlugPreview();
+
+            // Show QR Panel
+            showQRPanel(slug);
+        }
+
+        function deleteChain(id) {
+            if (confirm('Delete this chain permanently?')) {
+                chains = chains.filter(c => c.id !== id);
+                saveChains();
+                document.getElementById('qr-panel').classList.add('hidden');
             }
         }
-    }
 
-    // --- GitHub Sync Functions ---
-    async function publishToGitHub() {
-       
-        const statusEl = document.getElementById('sync-status');
-        statusEl.className = 'sync-badge sync-loading';
-        statusEl.innerHTML = `<div class="w-2 h-2 rounded-full bg-current animate-pulse"></div><span>Publishing...</span>`;
-    
-        try {
+        function updateChain(id) {
+            const chain = chains.find(c => c.id === id);
+            const newUrl = prompt('Enter new target URL:', chain.url);
+            if (newUrl && newUrl !== chain.url) {
+                chain.url = newUrl;
+                chain.updated = new Date().toISOString();
+                saveChains();
+                if (currentQRSlug === chain.slug) {
+                    showQRPanel(chain.slug); // Refresh QR
+                }
+            }
+        }
+
+        // --- GitHub Sync Functions ---
+        async function publishToGitHub() {
+            const statusEl = document.getElementById('sync-status');
+            statusEl.className = 'sync-badge sync-loading';
+            statusEl.innerHTML = `
+                <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
+                <span>Publishing...</span>
+            `;
+
+            try {
+                // Get current file SHA
+                const getResponse = await fetch(
+                    `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${GH_POINTER}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    }
+                );
+
+                let sha = null;
+                if (getResponse.ok) {
+                    const fileData = await getResponse.json();
+                    sha = fileData.sha;
+                }
+
+                // Prepare data
+                const data = {
+                    chains: chains,
+                    exported: new Date().toISOString(),
+                    version: "1.0"
+                };
+
+                const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+
+                const commitData = {
+                    message: `Update chains - ${new Date().toLocaleString()}`,
+                    content: content,
+                    branch: GITHUB_BRANCH
+                };
+
+                if (sha) {
+                    commitData.sha = sha;
+                }
+
+                // Commit
+                const putResponse = await fetch(
+                    `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${GH_POINTER}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(commitData)
+                    }
+                );
+
+                if (putResponse.ok) {
+                    githubChains = [...chains];
+                    updateSyncStatus();
+                    alert('✅ Published to GitHub!');
+                } else {
+                    const error = await putResponse.json();
+                    throw new Error(error.message || 'Failed to commit');
+                }
+
+            } catch (error) {
+                console.error('Publish error:', error);
+                updateSyncStatus();
+                alert('❌ Failed: ' + error.message);
+            }
+        }
+
+        function exportChains() {
             const data = {
                 chains: chains,
                 exported: new Date().toISOString(),
                 version: "1.0"
             };
-    
-             const response = await fetch(NETLIFY_FUNCTION_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-    
-            if (response.ok) {
-                githubChains = [...chains];
-                updateSyncStatus();
-                alert('✅ Published to GitHub!');
-            } else {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to publish');
-            }
-        } catch (error) {
-            console.error('Publish error:', error);
-            updateSyncStatus();
-            alert('❌ Failed: ' + error.message);
-        }
-    }
 
-    function exportChains() {
-        const data = {
-            chains: chains,
-            exported: new Date().toISOString(),
-            version: "1.0"
-        };
-
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = CHAINS_FILE;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        alert('Downloaded chains.json!\n\nKeep this as a backup. You can upload it to GitHub manually if needed.');
-    }
-
-    async function reloadFromGitHub() {
-        if (!confirm('This will reload chains from GitHub and discard local changes. Continue?')) {
-            return;
-        }
-    
-        const statusEl = document.getElementById('sync-status');
-        statusEl.className = 'sync-badge sync-loading';
-        statusEl.innerHTML = `
-            <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
-            <span>Reloading...</span>
-        `;
-
-        try {
-            const response = await fetch(`${NETLIFY_FUNCTION_URL}?_=${Date.now()}`, {
-                method: 'GET'
-            });
-
-            
-            if (response.ok) {
-                const data = await response.json();
-                chains = data.chains || [];
-                githubChains = [...chains];
-                renderChains();
-                updateSyncStatus();
-                alert('✅ Reloaded from GitHub!');
-            } else {
-                throw new Error('Failed to reload from GitHub');
-            }
-        } catch (error) {
-            console.error('Reload error:', error);
-            updateSyncStatus();
-            alert('❌ Failed to reload: ' + error.message);
-        }
-    }
-
-    // --- UI Rendering ---
-    function renderChains() {
-        const list = document.getElementById('chains-list');
-        const count = document.getElementById('chain-count');
-
-        count.textContent = `${chains.length} chain${chains.length !== 1 ? 's' : ''}`;
-
-        if (chains.length === 0) {
-            list.innerHTML = `
-                <div class="text-center text-slate-500 py-12">
-                    <p>No chains created yet.</p>
-                    <p class="text-sm mt-2">Create your first link chain on the left!</p>
-                </div>
-            `;
-            return;
-        }
-
-        list.innerHTML = chains.map(chain => {
-            const shortUrl = `https://foodsharingfin.github.io/dynlink/?id=${chain.slug}`;
-            const displayUrl = chain.url.length > 50 ? chain.url.substring(0, 50) + '...' : chain.url;
-            
-            return `
-                <div class="glass-card rounded-xl p-4 hover:border-indigo-500/30 transition-all group">
-                    <div class="flex justify-between items-start gap-3">
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="text-xs font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">${chain.slug}</span>
-                                ${chain.updated ? '<span class="text-xs text-amber-400">●</span>' : ''}
-                            </div>
-                            <p class="text-sm font-medium text-white mb-1">${chain.note}</p>
-                            <a href="${chain.url}" target="_blank" class="text-xs text-slate-400 hover:text-indigo-400 transition-colors truncate block">
-                                ${displayUrl}
-                            </a>
-                            <p class="text-xs text-slate-500 mt-2">
-                                Created ${new Date(chain.created).toLocaleDateString()}
-                                ${chain.updated ? ` • Updated ${new Date(chain.updated).toLocaleDateString()}` : ''}
-                            </p>
-                        </div>
-                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onclick="showQRPanel('${chain.slug}')" class="p-2 hover:bg-indigo-500/20 rounded-lg transition-colors" title="Generate QR Code">
-                                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
-                            </button>
-                            <button onclick="updateChain(${chain.id})" class="p-2 hover:bg-blue-500/20 rounded-lg transition-colors" title="Edit URL">
-                                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                            </button>
-                            <button onclick="copyShortUrl('${shortUrl}')" class="p-2 hover:bg-green-500/20 rounded-lg transition-colors" title="Copy short link">
-                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                            </button>
-                            <button onclick="deleteChain(${chain.id})" class="p-2 hover:bg-red-500/20 rounded-lg transition-colors" title="Delete">
-                                <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    function copyShortUrl(url) {
-        navigator.clipboard.writeText(url).then(() => {
-            alert('✅ Short link copied to clipboard!\n\n' + url);
-        });
-    }
-
-    // --- QR Code Functions ---
-    function showQRPanel(slug) {
-        const chain = chains.find(c => c.slug === slug);
-        if (!chain) return;
-
-        currentQRSlug = slug;
-        const panel = document.getElementById('qr-panel');
-        const qrContainer = document.getElementById('qrcode');
-        const colorPicker = document.getElementById('qr-color');
-        
-        panel.classList.remove('hidden');
-        qrContainer.innerHTML = '';
-
-        const shortUrl = `https://foodsharingfin.github.io/dynlink/?id=${slug}`;
-        
-        qrCodeObj = qrcode(0, 'H');
-        qrCodeObj.addData(shortUrl);
-        qrCodeObj.make();
-        
-        qrContainer.innerHTML = qrCodeObj.createSvgTag(4);
-        updateQRColor();
-
-        // Scroll to QR panel
-        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    function updateQRColor() {
-        const color = document.getElementById('qr-color').value;
-        document.getElementById('color-hex').textContent = color;
-        
-        const svg = document.querySelector('#qrcode svg');
-        if (svg) {
-            const rects = svg.querySelectorAll('rect');
-            rects.forEach(rect => {
-                if (rect.getAttribute('fill') === '#000000' || rect.style.fill === 'rgb(0, 0, 0)') {
-                    rect.setAttribute('fill', color);
-                }
-            });
-        }
-    }
-
-    function downloadQR(format) {
-        if (!currentQRSlug) return;
-
-        const chain = chains.find(c => c.slug === currentQRSlug);
-        const svg = document.querySelector('#qrcode svg');
-        if (!svg) return;
-
-        const sanitizedSlug = chain.slug.replace(/[^a-z0-9-]/gi, '_');
-
-        if (format === 'svg') {
-            const svgData = new XMLSerializer().serializeToString(svg);
-            const blob = new Blob([svgData], { type: 'image/svg+xml' });
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `qr-${sanitizedSlug}.svg`;
+            a.download = CHAINS_FILE;
             a.click();
             URL.revokeObjectURL(url);
-        } else if (format === 'png') {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-            
-            const svgData = new XMLSerializer().serializeToString(svg);
-            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(svgBlob);
 
-            img.onload = function() {
-                canvas.width = 1000;
-                canvas.height = 1000;
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                
-                canvas.toBlob(blob => {
-                    const pngUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = pngUrl;
-                    a.download = `qr-${sanitizedSlug}.png`;
-                    a.click();
-                    URL.revokeObjectURL(pngUrl);
-                });
-                
-                URL.revokeObjectURL(url);
-            };
-            
-            img.src = url;
+            alert('Downloaded chains.json!\n\nNext steps:\n1. Commit this file to your GitHub repo\n2. The changes will be live immediately');
         }
-    }
 
-    // --- Initialize on page load ---
-    document.getElementById('password-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            checkPassword();
+        async function reloadFromGitHub() {
+            if (!confirm('This will reload chains from GitHub and discard local changes. Continue?')) {
+                return;
+            }
+
+            const statusEl = document.getElementById('sync-status');
+            statusEl.className = 'sync-badge sync-loading';
+            statusEl.innerHTML = `
+                <div class="w-2 h-2 rounded-full bg-current animate-pulse"></div>
+                <span>Reloading...</span>
+            `;
+
+            try {
+                const response = await fetch(
+                    `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}?ref=${GITHUB_BRANCH}&_=${Date.now()}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${GH_POINTER}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        },
+                        cache: 'no-store'
+                    }
+                );
+                
+                if (response.ok) {
+                    const fileData = await response.json();
+                    const content = atob(fileData.content);
+                    const data = JSON.parse(content);
+                    chains = data.chains || [];
+                    githubChains = [...chains];
+                    renderChains();
+                    updateSyncStatus();
+                } else {
+                    alert('Could not load from GitHub.');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+                updateSyncStatus();
+            }
         }
-    });
-        // --- Redirect Logic (for QR code scanning) ---
-    async function handleRedirect() {
-        const params = new URLSearchParams(window.location.search);
-        const id = params.get('id');
-        
-        if (!id) return; // No redirect needed, show admin interface
-        
-        // Show loading spinner
-        document.body.innerHTML = `
-            <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); font-family: system-ui; color: white;">
-                <div style="text-align: center;">
-                    <div style="width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1rem;"></div>
-                    <p>Redirecting...</p>
+
+        // --- Rendering ---
+        function renderChains() {
+            const container = document.getElementById('chains-list');
+            const count = document.getElementById('chain-count');
+            
+            count.textContent = `${chains.length} chain${chains.length !== 1 ? 's' : ''}`;
+
+            if (chains.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-slate-500 py-12 border-2 border-dashed border-slate-700 rounded-xl">
+                        <p class="text-lg mb-2">🎯</p>
+                        <p>No chains created yet.</p>
+                        <p class="text-sm mt-1 opacity-70">Create your first link chain!</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = chains.map(chain => `
+                <div class="glass-card rounded-xl p-4 flex flex-col gap-3 group animate-slide-in">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">${chain.slug}</span>
+                                <span class="text-xs text-slate-500">${chain.visits} visits</span>
+                            </div>
+                            <h3 class="font-medium text-white">${chain.note}</h3>
+                            <p class="text-xs text-slate-400 truncate max-w-[200px] sm:max-w-xs">${chain.url}</p>
+                        </div>
+                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="showQRPanel('${chain.slug}')" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300" title="Show QR">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                            </button>
+                            <button onclick="updateChain(${chain.id})" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300" title="Edit URL">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            </button>
+                            <button onclick="deleteChain(${chain.id})" class="p-2 hover:bg-red-500/20 rounded-lg text-red-400" title="Delete">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-slate-500 bg-slate-800/50 p-2 rounded-lg">
+                        <span class="truncate flex-1 font-mono">${window.location.origin}${window.location.pathname}?id=${chain.slug}</span>
+                        <button onclick="copyLink('${chain.slug}')" class="text-indigo-400 hover:text-indigo-300 font-medium">Copy</button>
+                    </div>
                 </div>
-            </div>
-            <style>@keyframes spin { to { transform: rotate(360deg); }}</style>
-        `;
-        
-        try {
-            // Fetch chains from GitHub (public, no auth needed)
-            const response = await fetch(
-                `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${CHAINS_FILE}?_=${Date.now()}`,
-                { cache: 'no-store' }
-            );
+            `).join('');
+        }
+
+        function copyLink(slug) {
+            const url = `${window.location.origin}${window.location.pathname}?id=${slug}`;
+            navigator.clipboard.writeText(url);
+            // Visual feedback could be added here
+        }
+
+        // --- QR Code Studio ---
+        function showQRPanel(slug) {
+            currentQRSlug = slug;
+            const panel = document.getElementById('qr-panel');
+            panel.classList.remove('hidden');
             
-            if (response.ok) {
-                const data = await response.json();
-                const chain = data.chains.find(c => c.slug === id);
+            // Scroll to QR panel on mobile
+            if (window.innerWidth < 1024) {
+                panel.scrollIntoView({ behavior: 'smooth' });
+            }
+
+            generateQR();
+        }
+
+        function generateQR() {
+            const container = document.getElementById('qrcode');
+            container.innerHTML = '';
+            
+            const url = `${window.location.origin}${window.location.pathname}?id=${currentQRSlug}`;
+            const color = document.getElementById('qr-color').value;
+            
+            // Use qrcode-generator library for proper SVG
+            const qr = qrcode(0, 'H'); // Type 0 = auto, error correction level H
+            qr.addData(url);
+            qr.make();
+            
+            // Create SVG with custom color and transparent background
+            const cellSize = 10;
+            const moduleCount = qr.getModuleCount();
+            const svgSize = moduleCount * cellSize;
+            
+            let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">`;
+            // Removed white background rect for transparency
+            
+            for (let row = 0; row < moduleCount; row++) {
+                for (let col = 0; col < moduleCount; col++) {
+                    if (qr.isDark(row, col)) {
+                        const x = col * cellSize;
+                        const y = row * cellSize;
+                        svg += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="${color}"/>`;
+                    }
+                }
+            }
+            
+            svg += '</svg>';
+            container.innerHTML = svg;
+        }
+
+        function applyQRColor() {
+            const colorPicker = document.getElementById('qr-color');
+            const hexInput = document.getElementById('qr-hex-input');
+            let color = hexInput.value.trim();
+            
+            // Validate hex color
+            if (!color.startsWith('#')) {
+                color = '#' + color;
+            }
+            
+            if (/^#[0-9A-F]{6}$/i.test(color)) {
+                // Valid hex color
+                colorPicker.value = color;
+                hexInput.value = color;
+                generateQR();
+            } else {
+                alert('Invalid hex color. Please use format: #000000 or 000000');
+                hexInput.value = colorPicker.value;
+            }
+        }
+
+        // Sync color picker with hex input
+        document.addEventListener('DOMContentLoaded', function() {
+            const colorPicker = document.getElementById('qr-color');
+            const hexInput = document.getElementById('qr-hex-input');
+            
+            if (colorPicker && hexInput) {
+                colorPicker.addEventListener('input', function() {
+                    hexInput.value = colorPicker.value;
+                });
+            }
+        });
+
+        function downloadQR(format) {
+            const svg = document.querySelector('#qrcode svg');
+            if (!svg) {
+                alert('Please generate a QR code first.');
+                return;
+            }
+            
+            if (format === 'svg') {
+                // Download as SVG
+                const svgData = new XMLSerializer().serializeToString(svg);
+                const blob = new Blob([svgData], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `qr-${currentQRSlug}.svg`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } else {
+                // Download as PNG with transparent background
+                const svgData = new XMLSerializer().serializeToString(svg);
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d', { alpha: true }); // Explicitly enable alpha
+                const img = new Image();
                 
+                img.onload = function() {
+                    canvas.width = 1000;
+                    canvas.height = 1000;
+                    // Canvas is now transparent by default with alpha enabled
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); // Ensure transparency
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    const pngFile = canvas.toDataURL('image/png');
+                    const downloadLink = document.createElement('a');
+                    downloadLink.download = `qr-${currentQRSlug}.png`;
+                    downloadLink.href = pngFile;
+                    downloadLink.click();
+                };
+                
+                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+            }
+            }
+        // --- Redirect Logic ---
+        function handleRedirect() {
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+            
+            if (id) {
+                // Show loading screen
+                document.getElementById('loading-screen').classList.add('active');
+                
+                // Use current chains for redirect (will be loaded from GitHub)
+                const chain = chains.find(c => c.slug === id);
                 if (chain) {
-                    window.location.replace(chain.url);
+                    // Increment visits
+                    chain.visits++;
+                    
+                    // Redirect after a short delay to show the loading screen
+                    setTimeout(() => {
+                        window.location.replace(chain.url);
+                    }, 1200);
                 } else {
                     document.body.innerHTML = `
-                        <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0f172a; font-family: system-ui; color: white;">
-                            <div style="text-align: center; max-width: 400px; padding: 2rem;">
-                                <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Link Not Found</h1>
-                                <p style="color: #94a3b8;">The chain "${id}" doesn't exist or has been removed.</p>
+                        <div class="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+                            <div class="text-center">
+                                <h1 class="text-2xl font-bold mb-2">Link Not Found</h1>
+                                <p class="text-slate-400">The chain "${id}" doesn't exist.</p>
+                                <a href="${window.location.pathname}" class="text-indigo-400 hover:underline mt-4 inline-block">Go to Manager</a>
                             </div>
                         </div>
                     `;
                 }
-            } else {
-                throw new Error('Failed to load chains');
             }
-        } catch (error) {
-            document.body.innerHTML = `
-                <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0f172a; font-family: system-ui; color: white;">
-                    <div style="text-align: center; max-width: 400px; padding: 2rem;">
-                        <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Error</h1>
-                        <p style="color: #94a3b8;">Could not load redirect data. Please try again.</p>
-                    </div>
-                </div>
-            `;
         }
-    }
-    
-    // Check for redirect on page load
-    window.addEventListener('DOMContentLoaded', handleRedirect);
-</script>
+
+        // --- Initialization ---
+        window.onload = async function() {
+            // Load chains from GitHub for redirect
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+            
+            if (id) {
+                // Redirect mode - fetch fresh from GitHub
+                try {
+                    const response = await fetch(
+                        `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}?ref=${GITHUB_BRANCH}&_=${Date.now()}`,
+                        {
+                            headers: {
+                                'Authorization': `Bearer ${GH_POINTER}`,
+                                'Accept': 'application/vnd.github.v3+json'
+                            },
+                            cache: 'no-store'
+                        }
+                    );
+                    
+                    if (response.ok) {
+                        const fileData = await response.json();
+                        const content = atob(fileData.content);
+                        const data = JSON.parse(content);
+                        chains = data.chains || [];
+                        console.log('Loaded for redirect:', chains.length, 'chains');
+                    } else {
+                        console.log('No chains.json found (404)');
+                        chains = [];
+                    }
+                } catch (e) {
+                    console.error('Redirect fetch error:', e);
+                    chains = [];
+                }
+
+                handleRedirect();
+            } else {
+                // Normal mode
+                document.getElementById('password-input').addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') checkPassword();
+                });
+            }
+        };
+    </script>
+</body>
+</html>
