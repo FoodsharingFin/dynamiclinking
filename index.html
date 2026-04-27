@@ -198,6 +198,38 @@
             display: flex;
         }
 
+        /* Countdown ring */
+        .countdown-ring {
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+        .countdown-ring svg {
+            transform: rotate(-90deg);
+        }
+        .countdown-ring .ring-bg {
+            fill: none;
+            stroke: rgba(99,102,241,0.2);
+            stroke-width: 4;
+        }
+        .countdown-ring .ring-progress {
+            fill: none;
+            stroke: #6366f1;
+            stroke-width: 4;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s linear;
+        }
+        .countdown-number {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #6366f1;
+        }
+
         /* Sync Badge */
         .sync-badge {
             display: inline-flex;
@@ -223,6 +255,33 @@
             color: #6366f1;
             border: 1px solid rgba(99, 102, 241, 0.2);
         }
+
+        /* Redirect settings toggle */
+        .redirect-settings-toggle {
+            cursor: pointer;
+            user-select: none;
+        }
+        .redirect-settings-body {
+            display: none;
+        }
+        .redirect-settings-body.open {
+            display: block;
+        }
+
+        /* Modal */
+        #redirect-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 70;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        #redirect-modal.active {
+            display: flex;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -231,15 +290,52 @@
 
     <!-- Loading Screen for Redirects -->
     <div id="loading-screen">
-        <div class="text-center animate-slide-in">
-            <div class="w-20 h-20 mx-auto mb-6">
-                <svg class="animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        <div class="text-center animate-slide-in px-6">
+            <div class="countdown-ring mx-auto mb-6">
+                <svg viewBox="0 0 80 80" width="80" height="80">
+                    <circle class="ring-bg" cx="40" cy="40" r="34"/>
+                    <circle id="ring-progress" class="ring-progress" cx="40" cy="40" r="34"
+                        stroke-dasharray="213.6"
+                        stroke-dashoffset="0"/>
                 </svg>
+                <div class="countdown-number" id="countdown-number">–</div>
             </div>
-            <p class="text-2xl font-bold text-white mb-2">🍌 Banana bread is baking...</p>
-            <p class="text-sm text-slate-400">Redirecting you now</p>
+            <p class="text-2xl font-bold text-white mb-2" id="redirect-message">Redirecting you now...</p>
+            <p class="text-sm text-slate-400" id="redirect-submessage">Hang tight</p>
+        </div>
+    </div>
+
+    <!-- Redirect Settings Modal -->
+    <div id="redirect-modal">
+        <div class="glass p-6 rounded-2xl max-w-md w-full mx-4 animate-slide-in">
+            <h3 class="text-lg font-semibold mb-1">Redirect Screen Settings</h3>
+            <p class="text-xs text-slate-400 mb-5">Customize what visitors see while being redirected.</p>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Main Message</label>
+                    <input type="text" id="modal-message" class="input-field w-full px-4 py-3 rounded-xl text-white" placeholder="🍌 Banana bread is baking...">
+                    <p class="text-xs text-slate-500 mt-1">Shown large. Emoji encouraged.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Sub-message</label>
+                    <input type="text" id="modal-submessage" class="input-field w-full px-4 py-3 rounded-xl text-white" placeholder="Redirecting you now">
+                    <p class="text-xs text-slate-500 mt-1">Smaller line below the main message.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Display Duration</label>
+                    <div class="flex items-center gap-3">
+                        <input type="range" id="modal-duration" min="1" max="60" value="2" class="flex-1 accent-indigo-500" oninput="document.getElementById('modal-duration-display').textContent = this.value + 's'">
+                        <span id="modal-duration-display" class="text-indigo-400 font-mono w-10 text-right text-sm">2s</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">How long to show this screen before redirecting (1–60 sec).</p>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeRedirectModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl text-sm font-medium transition-colors">Cancel</button>
+                <button onclick="saveRedirectSettings()" class="btn-primary flex-1 py-3 rounded-xl font-semibold text-white text-sm">Save</button>
+            </div>
         </div>
     </div>
 
@@ -324,6 +420,32 @@
                             <label class="block text-sm font-medium text-slate-300 mb-2">Target URL</label>
                             <input type="url" id="url-input" required class="input-field w-full px-4 py-3 rounded-xl text-white" placeholder="https://example.com">
                             <p class="text-xs text-slate-500 mt-1">Where should this link redirect to? You can change this later.</p>
+                        </div>
+
+                        <!-- Redirect Screen Settings (collapsible) -->
+                        <div class="border border-white/10 rounded-xl overflow-hidden">
+                            <div class="redirect-settings-toggle flex items-center justify-between px-4 py-3 bg-slate-800/40 hover:bg-slate-700/40 transition-colors" onclick="toggleRedirectSection()">
+                                <span class="text-sm font-medium text-slate-300 flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Redirect Screen Settings
+                                </span>
+                                <svg id="redirect-toggle-icon" class="w-4 h-4 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                            <div id="redirect-settings-body" class="redirect-settings-body px-4 pb-4 pt-3 space-y-3 bg-slate-900/30">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-400 mb-1">Main Message</label>
+                                    <input type="text" id="create-redirect-message" class="input-field w-full px-3 py-2 rounded-lg text-white text-sm" placeholder="🍌 Banana bread is baking...">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-400 mb-1">Sub-message</label>
+                                    <input type="text" id="create-redirect-submessage" class="input-field w-full px-3 py-2 rounded-lg text-white text-sm" placeholder="Redirecting you now">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-400 mb-2">Display Duration: <span id="create-duration-display" class="text-indigo-400 font-mono">2s</span></label>
+                                    <input type="range" id="create-redirect-duration" min="1" max="60" value="2" class="w-full accent-indigo-500" oninput="document.getElementById('create-duration-display').textContent = this.value + 's'">
+                                    <p class="text-xs text-slate-600 mt-1">How long visitors see this screen before being redirected.</p>
+                                </div>
+                            </div>
                         </div>
 
                         <button type="submit" class="btn-primary w-full py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2">
@@ -418,7 +540,7 @@
                     
                     <div class="mb-4 p-3 bg-slate-800/50 rounded-lg text-xs text-slate-400">
                         <p class="font-medium text-slate-300 mb-1">🔗 Your Dynamic Links:</p>
-                        <p>Hover over a chain to see options: <span class="text-indigo-400">QR</span> = generate QR code • <span class="text-indigo-400">Edit</span> = change URL • <span class="text-indigo-400">Delete</span> = remove</p>
+                        <p>Hover over a chain to see options: <span class="text-indigo-400">QR</span> = generate QR code • <span class="text-amber-400">⏱</span> = redirect screen • <span class="text-indigo-400">Edit</span> = change URL • <span class="text-indigo-400">Delete</span> = remove</p>
                     </div>
 
                     <div id="chains-list" class="space-y-3">
@@ -443,12 +565,18 @@
         const GH_POINTER = to_a + to_b;
         
         const STORAGE_KEY = 'aifs_link_chains';
+
+        // Defaults for redirect screen
+        const DEFAULT_REDIRECT_MESSAGE = '🍌 Banana bread is baking...';
+        const DEFAULT_REDIRECT_SUBMESSAGE = 'Redirecting you now';
+        const DEFAULT_REDIRECT_DURATION = 2; // seconds
         
         // --- State Management ---
         let chains = [];
         let githubChains = [];
         let currentQRSlug = null;
         let qrCodeObj = null;
+        let editingRedirectId = null;
 
         // --- Sync Status ---
         function updateSyncStatus() {
@@ -478,14 +606,10 @@
                 const lockScreen = document.getElementById('lock-screen');
                 const app = document.getElementById('app');
                 
-                // Immediately show app and load data
                 app.classList.remove('hidden');
                 loadChains();
                 
-                // Then fade out lock screen
                 lockScreen.style.opacity = '0';
-                
-                // After transition, fully remove lock screen
                 setTimeout(() => {
                     lockScreen.style.display = 'none';
                 }, 300);
@@ -498,6 +622,53 @@
         function lock() {
             location.reload();
         }
+
+        // --- Redirect Settings Toggle (create form) ---
+        function toggleRedirectSection() {
+            const body = document.getElementById('redirect-settings-body');
+            const icon = document.getElementById('redirect-toggle-icon');
+            body.classList.toggle('open');
+            icon.style.transform = body.classList.contains('open') ? 'rotate(180deg)' : '';
+        }
+
+        // --- Redirect Settings Modal ---
+        function openRedirectModal(id) {
+            const chain = chains.find(c => c.id === id);
+            if (!chain) return;
+            editingRedirectId = id;
+
+            document.getElementById('modal-message').value = chain.redirectMessage || '';
+            document.getElementById('modal-submessage').value = chain.redirectSubmessage || '';
+            const dur = chain.redirectDuration || DEFAULT_REDIRECT_DURATION;
+            document.getElementById('modal-duration').value = dur;
+            document.getElementById('modal-duration-display').textContent = dur + 's';
+
+            document.getElementById('redirect-modal').classList.add('active');
+        }
+
+        function closeRedirectModal() {
+            document.getElementById('redirect-modal').classList.remove('active');
+            editingRedirectId = null;
+        }
+
+        function saveRedirectSettings() {
+            if (editingRedirectId === null) return;
+            const chain = chains.find(c => c.id === editingRedirectId);
+            if (!chain) return;
+
+            chain.redirectMessage = document.getElementById('modal-message').value.trim();
+            chain.redirectSubmessage = document.getElementById('modal-submessage').value.trim();
+            chain.redirectDuration = parseInt(document.getElementById('modal-duration').value, 10);
+            chain.updated = new Date().toISOString();
+
+            saveChains();
+            closeRedirectModal();
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('redirect-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeRedirectModal();
+        });
 
         // --- Slug Generation ---
         function slugify(text) {
@@ -544,7 +715,6 @@
                     githubChains = [...chains];
                     console.log('Loaded from GitHub:', chains.length, 'chains');
                 } else if (response.status === 404) {
-                    // File doesn't exist yet - start fresh
                     chains = [];
                     githubChains = [];
                     console.log('No chains.json in GitHub yet');
@@ -560,7 +730,6 @@
         }
 
         function saveChains() {
-            // No localStorage - chains only exist in memory until published to GitHub
             renderChains();
             updateSyncStatus();
         }
@@ -571,7 +740,6 @@
             const url = document.getElementById('url-input').value;
             const slug = slugify(note);
 
-            // Check for duplicate slugs
             if (chains.find(c => c.slug === slug)) {
                 alert('A chain with this name already exists! Please use a unique note.');
                 return;
@@ -583,17 +751,19 @@
                 note,
                 url,
                 created: new Date().toISOString(),
-                visits: 0
+                visits: 0,
+                redirectMessage: document.getElementById('create-redirect-message').value.trim(),
+                redirectSubmessage: document.getElementById('create-redirect-submessage').value.trim(),
+                redirectDuration: parseInt(document.getElementById('create-redirect-duration').value, 10) || DEFAULT_REDIRECT_DURATION
             };
 
             chains.push(newChain);
             saveChains();
 
-            // Reset form
             document.getElementById('create-form').reset();
+            document.getElementById('create-duration-display').textContent = '2s';
             updateSlugPreview();
 
-            // Show QR Panel
             showQRPanel(slug);
         }
 
@@ -613,7 +783,7 @@
                 chain.updated = new Date().toISOString();
                 saveChains();
                 if (currentQRSlug === chain.slug) {
-                    showQRPanel(chain.slug); // Refresh QR
+                    showQRPanel(chain.slug);
                 }
             }
         }
@@ -628,7 +798,6 @@
             `;
 
             try {
-                // Get current file SHA
                 const getResponse = await fetch(
                     `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}`,
                     {
@@ -645,7 +814,6 @@
                     sha = fileData.sha;
                 }
 
-                // Prepare data
                 const data = {
                     chains: chains,
                     exported: new Date().toISOString(),
@@ -664,7 +832,6 @@
                     commitData.sha = sha;
                 }
 
-                // Commit
                 const putResponse = await fetch(
                     `https://api.github.com/repos/${GITHUB_REPO}/contents/${CHAINS_FILE}`,
                     {
@@ -770,13 +937,17 @@
                 return;
             }
 
-            container.innerHTML = chains.map(chain => `
+            container.innerHTML = chains.map(chain => {
+                const dur = chain.redirectDuration || DEFAULT_REDIRECT_DURATION;
+                const hasCustomRedirect = chain.redirectMessage || chain.redirectSubmessage || chain.redirectDuration;
+                return `
                 <div class="glass-card rounded-xl p-4 flex flex-col gap-3 group animate-slide-in">
                     <div class="flex justify-between items-start">
                         <div>
                             <div class="flex items-center gap-2 mb-1">
                                 <span class="text-xs font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">${chain.slug}</span>
                                 <span class="text-xs text-slate-500">${chain.visits} visits</span>
+                                ${hasCustomRedirect ? `<span class="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded flex items-center gap-1" title="Custom redirect screen: ${dur}s">⏱ ${dur}s</span>` : ''}
                             </div>
                             <h3 class="font-medium text-white">${chain.note}</h3>
                             <p class="text-xs text-slate-400 truncate max-w-[200px] sm:max-w-xs">${chain.url}</p>
@@ -784,6 +955,9 @@
                         <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onclick="showQRPanel('${chain.slug}')" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300" title="Show QR">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                            </button>
+                            <button onclick="openRedirectModal(${chain.id})" class="p-2 hover:bg-amber-500/20 rounded-lg text-amber-400" title="Edit redirect screen">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             </button>
                             <button onclick="updateChain(${chain.id})" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300" title="Edit URL">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
@@ -798,13 +972,12 @@
                         <button onclick="copyLink('${chain.slug}')" class="text-indigo-400 hover:text-indigo-300 font-medium">Copy</button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         function copyLink(slug) {
             const url = `${window.location.origin}${window.location.pathname}?id=${slug}`;
             navigator.clipboard.writeText(url);
-            // Visual feedback could be added here
         }
 
         // --- QR Code Studio ---
@@ -813,7 +986,6 @@
             const panel = document.getElementById('qr-panel');
             panel.classList.remove('hidden');
             
-            // Scroll to QR panel on mobile
             if (window.innerWidth < 1024) {
                 panel.scrollIntoView({ behavior: 'smooth' });
             }
@@ -828,18 +1000,15 @@
             const url = `${window.location.origin}${window.location.pathname}?id=${currentQRSlug}`;
             const color = document.getElementById('qr-color').value;
             
-            // Use qrcode-generator library for proper SVG
-            const qr = qrcode(0, 'H'); // Type 0 = auto, error correction level H
+            const qr = qrcode(0, 'H');
             qr.addData(url);
             qr.make();
             
-            // Create SVG with custom color and transparent background
             const cellSize = 10;
             const moduleCount = qr.getModuleCount();
             const svgSize = moduleCount * cellSize;
             
             let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">`;
-            // Removed white background rect for transparency
             
             for (let row = 0; row < moduleCount; row++) {
                 for (let col = 0; col < moduleCount; col++) {
@@ -860,13 +1029,11 @@
             const hexInput = document.getElementById('qr-hex-input');
             let color = hexInput.value.trim();
             
-            // Validate hex color
             if (!color.startsWith('#')) {
                 color = '#' + color;
             }
             
             if (/^#[0-9A-F]{6}$/i.test(color)) {
-                // Valid hex color
                 colorPicker.value = color;
                 hexInput.value = color;
                 generateQR();
@@ -876,7 +1043,6 @@
             }
         }
 
-        // Sync color picker with hex input
         document.addEventListener('DOMContentLoaded', function() {
             const colorPicker = document.getElementById('qr-color');
             const hexInput = document.getElementById('qr-hex-input');
@@ -896,7 +1062,6 @@
             }
             
             if (format === 'svg') {
-                // Download as SVG
                 const svgData = new XMLSerializer().serializeToString(svg);
                 const blob = new Blob([svgData], { type: 'image/svg+xml' });
                 const url = URL.createObjectURL(blob);
@@ -906,17 +1071,15 @@
                 a.click();
                 URL.revokeObjectURL(url);
             } else {
-                // Download as PNG with transparent background
                 const svgData = new XMLSerializer().serializeToString(svg);
                 const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d', { alpha: true }); // Explicitly enable alpha
+                const ctx = canvas.getContext('2d', { alpha: true });
                 const img = new Image();
                 
                 img.onload = function() {
                     canvas.width = 1000;
                     canvas.height = 1000;
-                    // Canvas is now transparent by default with alpha enabled
-                    ctx.clearRect(0, 0, canvas.width, canvas.height); // Ensure transparency
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     
                     const pngFile = canvas.toDataURL('image/png');
@@ -928,26 +1091,55 @@
                 
                 img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
             }
-            }
+        }
+
         // --- Redirect Logic ---
+        function startCountdown(durationSeconds, onComplete) {
+            const circumference = 2 * Math.PI * 34; // r=34 as in SVG
+            const ring = document.getElementById('ring-progress');
+            const numberEl = document.getElementById('countdown-number');
+            
+            let remaining = durationSeconds;
+
+            ring.style.strokeDasharray = circumference;
+            ring.style.strokeDashoffset = '0';
+            numberEl.textContent = remaining;
+
+            const interval = setInterval(() => {
+                remaining--;
+                numberEl.textContent = remaining;
+                const progress = remaining / durationSeconds;
+                ring.style.strokeDashoffset = circumference * (1 - progress);
+
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    onComplete();
+                }
+            }, 1000);
+        }
+
         function handleRedirect() {
             const params = new URLSearchParams(window.location.search);
             const id = params.get('id');
             
             if (id) {
-                // Show loading screen
-                document.getElementById('loading-screen').classList.add('active');
-                
-                // Use current chains for redirect (will be loaded from GitHub)
                 const chain = chains.find(c => c.slug === id);
                 if (chain) {
-                    // Increment visits
+                    // Apply per-chain redirect screen content
+                    const message = chain.redirectMessage || DEFAULT_REDIRECT_MESSAGE;
+                    const submessage = chain.redirectSubmessage || DEFAULT_REDIRECT_SUBMESSAGE;
+                    const duration = chain.redirectDuration || DEFAULT_REDIRECT_DURATION;
+
+                    document.getElementById('redirect-message').textContent = message;
+                    document.getElementById('redirect-submessage').textContent = submessage;
+
+                    document.getElementById('loading-screen').classList.add('active');
+
                     chain.visits++;
-                    
-                    // Redirect after a short delay to show the loading screen
-                    setTimeout(() => {
+
+                    startCountdown(duration, () => {
                         window.location.replace(chain.url);
-                    }, 1200);
+                    });
                 } else {
                     document.body.innerHTML = `
                         <div class="min-h-screen flex items-center justify-center bg-slate-900 text-white">
@@ -964,7 +1156,6 @@
 
         // --- Initialization ---
         window.onload = async function() {
-            // Load chains from GitHub for redirect
             const params = new URLSearchParams(window.location.search);
             const id = params.get('id');
             
@@ -999,7 +1190,6 @@
 
                 handleRedirect();
             } else {
-                // Normal mode
                 document.getElementById('password-input').addEventListener('keypress', function (e) {
                     if (e.key === 'Enter') checkPassword();
                 });
